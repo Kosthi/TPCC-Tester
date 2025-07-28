@@ -3,28 +3,28 @@ from enum import Enum  # 引入枚举类型
 from db.table_layouts import *
 
 # Operator
-ALL = '*'
-SELECT = 'select'
-FROM = 'from'
-WHERE = 'where'
-AND = ' and '
-ORDER_BY = 'order by'
-DESC = 'desc'
-ASC = 'asc'
-INSERT = 'insert'
-VALUES = 'values'
-UPDATE = 'update'
-DELETE = 'delete'
-SET = 'set'
-eq = '='
-bt = '>'
-lt = '<'
-beq = '>='
-leq = '<='
+ALL = "*"
+SELECT = "select"
+FROM = "from"
+WHERE = "where"
+AND = " and "
+ORDER_BY = "order by"
+DESC = "desc"
+ASC = "asc"
+INSERT = "insert"
+VALUES = "values"
+UPDATE = "update"
+DELETE = "delete"
+SET = "set"
+eq = "="
+bt = ">"
+lt = "<"
+beq = ">="
+leq = "<="
 
 
 class SQLState(Enum):
-    SUCCESS = 7,
+    SUCCESS = (7,)
     ABORT = 3
 
 
@@ -40,12 +40,12 @@ def select(client, table, col=ALL, where=False, order_by=False, asc=False):
     if where:
         param = [ele[-1] for ele in where]
 
-    table = ','.join(table)
+    table = ",".join(table)
 
-    gen = lambda ele: str(ele[0]) + str(ele[1]) + '%s'
-    where = ' '.join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ''
-    order_by = ' '.join([ORDER_BY, order_by, ASC if asc else DESC]) if order_by else ''
-    sql = ' '.join([SELECT, ','.join(col), FROM, table, where, order_by, ';'])
+    gen = lambda ele: str(ele[0]) + str(ele[1]) + "%s"
+    where = " ".join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ""
+    order_by = " ".join([ORDER_BY, order_by, ASC if asc else DESC]) if order_by else ""
+    sql = " ".join([SELECT, ",".join(col), FROM, table, where, order_by, ";"])
     # print(sql, param)
     for i in param:
         sql = sql.replace("%s", str(i), 1)
@@ -53,33 +53,33 @@ def select(client, table, col=ALL, where=False, order_by=False, asc=False):
 
     result = client.send_cmd(sql)
 
-    if result.startswith('abort'):
+    if result.startswith("abort"):
         return SQLState.ABORT
     # print(result)
 
-    if result.startswith('Error') or result == None or result == '':
+    if result.startswith("Error") or result == None or result == "":
         return
 
     # 使用字符串分割提取数字部分
     ## 1. 确定要获取多少列属性
     real_col_num = 0
-    if (len(col) == 1 and col[0] == '*'):
+    if len(col) == 1 and col[0] == "*":
         real_col_num = num_of_cols[table]
     else:
         real_col_num = len(col)
-    ## 2. 跳过第一行的“｜”    
-    shuxian_idx = result.find('|')
+    ## 2. 跳过第一行的“｜”
+    shuxian_idx = result.find("|")
     for i in range(real_col_num):
-        shuxian_idx = result.find('|', shuxian_idx + 1)
+        shuxian_idx = result.find("|", shuxian_idx + 1)
     ## 3. 初始化结果集
     results_allline = []
     result_oneline = []
     ## 4. 双层循环提取value
-    while (True):
+    while True:
         for i in range(real_col_num):
-            start_index = result.find('|', shuxian_idx + 1) + 1
-            end_index = result.find('|', start_index)
-            if (end_index == -1):
+            start_index = result.find("|", shuxian_idx + 1) + 1
+            end_index = result.find("|", start_index)
+            if end_index == -1:
                 # print(results_allline)
                 return results_allline
             extracted_value = result[start_index:end_index].strip()
@@ -87,9 +87,9 @@ def select(client, table, col=ALL, where=False, order_by=False, asc=False):
             shuxian_idx = start_index
         results_allline.append(result_oneline)
         result_oneline = []
-        start_index = result.find('|', shuxian_idx + 1) + 1
-        end_index = result.find('|', start_index)
-        if (end_index == -1):
+        start_index = result.find("|", shuxian_idx + 1) + 1
+        end_index = result.find("|", start_index)
+        if end_index == -1:
             # print(results_allline)
             return results_allline
         shuxian_idx = start_index
@@ -99,15 +99,17 @@ def select(client, table, col=ALL, where=False, order_by=False, asc=False):
 
 
 def insert(client, table, rows):
-    values = ''.join([VALUES, '(', ','.join(['%s' for i in range(num_of_cols[table])]), ')'])
-    sql = ' '.join([INSERT, "into", table, values, ';'])
+    values = "".join(
+        [VALUES, "(", ",".join(["%s" for i in range(num_of_cols[table])]), ")"]
+    )
+    sql = " ".join([INSERT, "into", table, values, ";"])
     # print(sql)
     # if type(rows[0]) != list:
     #     rows = [rows]
     for i in rows:
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
-    if client.send_cmd(sql).startswith('abort'):
+    if client.send_cmd(sql).startswith("abort"):
         return SQLState.ABORT
 
 
@@ -117,19 +119,19 @@ def update(client, table, row, where=False):
     if type(where) != list:
         where = [where]
     param = [ele[-1] for ele in where]
-    gen = lambda ele: str(ele[0]) + str(ele[1]) + '%s'
-    where = ' '.join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ''
-    var = [e[0] + '=%s' for e in row]
+    gen = lambda ele: str(ele[0]) + str(ele[1]) + "%s"
+    where = " ".join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ""
+    var = [e[0] + "=%s" for e in row]
     val = [e[1] for e in row]
 
-    sql = ' '.join([UPDATE, table, SET, ','.join(var), where, ';'])
+    sql = " ".join([UPDATE, table, SET, ",".join(var), where, ";"])
     # print(sql,val+param)
     for i in val:
         sql = sql.replace("%s", str(i), 1)
     for i in param:
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
-    if client.send_cmd(sql).startswith('abort'):
+    if client.send_cmd(sql).startswith("abort"):
         return SQLState.ABORT
     # print(result)
 
@@ -138,12 +140,12 @@ def delete(client, table, where):
     if type(where) != list:
         where = [where]
     param = [ele[-1] for ele in where]
-    gen = lambda ele: str(ele[0]) + str(ele[1]) + '%s'
-    where = ' '.join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ''
-    sql = ' '.join([DELETE, FROM, table, where, ';'])
+    gen = lambda ele: str(ele[0]) + str(ele[1]) + "%s"
+    where = " ".join([WHERE, AND.join([gen(ele) for ele in where])]) if where else ""
+    sql = " ".join([DELETE, FROM, table, where, ";"])
     # print(sql)
     for i in param:
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
-    if client.send_cmd(sql).startswith('abort'):
+    if client.send_cmd(sql).startswith("abort"):
         return SQLState.ABORT

@@ -8,4 +8,7 @@ cnf = [('localhost', 'root', 'admin', 3306, 'local-2CPU-4G', 'b'),
        ('rm-j6csd0g9wjw4p2m9xo.mysql.rds.aliyuncs.com','rdstester', 'rdstester', 3306, 'HK-1CPU-1G', 'c'),
        ('rm-m5eb23a68l0745hn8.mysql.rds.aliyuncs.com', 'rdstester', 'rdstester', 3306, 'NW-2CPU-4G', 'm')]
 """
-cnf = [('localhost', 'root', 'admin', 3306, 'local-2CPU-4G', 'b'), ]
+
+cnf = [
+    ("localhost", "root", "admin", 3306, "local-2CPU-4G", "b"),
+]

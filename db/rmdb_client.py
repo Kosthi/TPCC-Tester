@@ -5,7 +5,7 @@ import socket
 class Client:
     MAX_MEM_BUFFER_SIZE = 8192
     PORT_DEFAULT = 8765
-    HOST = '127.0.0.1'
+    HOST = "127.0.0.1"
     sockfd = None
 
     def __init__(self) -> None:

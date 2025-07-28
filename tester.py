@@ -50,15 +50,21 @@ def do_test(driver, lock, txns, txn_prob=None):
             d_id = get_d_id()  # 获得地区id，1～10的随机数
             c_id = get_c_id()  # 获得客户id，1～3000的随机数
             ol_i_id = get_ol_i_id()  # 获得新订单中的商品id列表
-            ol_supply_w_id = get_ol_supply_w_id(w_id, driver._scale, len(ol_i_id))  # 为新订单中每个商品选择一个供应仓库，当前设定就一个供应仓库
-            ol_quantity = get_ol_quantity(len(ol_i_id))  # 为新订单中每个商品设置购买数量
+            ol_supply_w_id = get_ol_supply_w_id(
+                w_id, driver._scale, len(ol_i_id)
+            )  # 为新订单中每个商品选择一个供应仓库，当前设定就一个供应仓库
+            ol_quantity = get_ol_quantity(
+                len(ol_i_id)
+            )  # 为新订单中每个商品设置购买数量
 
         elif txn == 1:  # Payment
             w_id = get_w_id()
             d_id = get_d_id()  # 获得地区id，1～10的随机数
             query_cus = query_cus_by(True)
             h_amount = get_h_amount()
-            c_w_id, c_d_id = get_c_w_id_d_id(w_id, d_id, driver._scale)  # 获得客户所属的仓库id和地区id
+            c_w_id, c_d_id = get_c_w_id_d_id(
+                w_id, d_id, driver._scale
+            )  # 获得客户所属的仓库id和地区id
 
         elif txn == 2:  # Delivery
             w_id = get_w_id()
@@ -77,7 +83,9 @@ def do_test(driver, lock, txns, txn_prob=None):
         while ret == SQLState.ABORT:
             if txn == 0:  # NewOrder
                 t1 = time.time()
-                ret = driver.do_new_order(w_id, d_id, c_id, ol_i_id, ol_supply_w_id, ol_quantity)
+                ret = driver.do_new_order(
+                    w_id, d_id, c_id, ol_i_id, ol_supply_w_id, ol_quantity
+                )
                 t2 = time.time()
                 put_new_order(lock, t2 - t_start)
 
