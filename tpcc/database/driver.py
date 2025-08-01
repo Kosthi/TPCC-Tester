@@ -1,9 +1,14 @@
 import re
 import time
+from pathlib import Path
 
-from db.rmdb_client import Client
-from mysql.sql import *
-from util import *
+from ..datagen import *
+from ..rmdb_client import Client
+from .sql_builder import *
+from .const import *
+
+# Define the base path for SQL files
+SQL_BASE_PATH = Path(__file__).parent.parent / "sql"
 
 CNT_W = 50
 CNT_ITEM = 100000
@@ -53,14 +58,18 @@ class Driver:
 
     def build(self):
         print("Build table schema...")
-        sql = open("TPCC-Tester/db/create_tables.sql", "r").read().split("\n")
+        sql_file = SQL_BASE_PATH / "create_tables.sql"
+        with open(sql_file, "r") as f:
+            sql = f.read().split("\n")
         for line in sql:
             if line:
                 self._client.send_cmd(line)
 
     def load(self):
         print("Load table data...")
-        sql = open("TPCC-Tester/db/load_csvs.sql", "r").read().split("\n")
+        sql_file = SQL_BASE_PATH / "load_csvs.sql"
+        with open(sql_file, "r") as f:
+            sql = f.read().split("\n")
         for line in sql:
             if line:
                 self._client.send_cmd(line)
@@ -68,14 +77,18 @@ class Driver:
 
     def create_index(self):
         print("Create index...")
-        sql = open("TPCC-Tester/db/create_index.sql", "r").read().split("\n")
+        sql_file = SQL_BASE_PATH / "create_index.sql"
+        with open(sql_file, "r") as f:
+            sql = f.read().split("\n")
         for line in sql:
             if line:
                 self._client.send_cmd(line)
 
     def all_in_load(self):
         print("Loading data...")
-        sql = open("TPCC-Tester/db/load_data.sql", "r").read().split("\n")
+        sql_file = SQL_BASE_PATH / "load_data.sql"
+        with open(sql_file, "r") as f:
+            sql = f.read().split("\n")
         for line in sql:
             if line:
                 self._client.send_cmd(line)

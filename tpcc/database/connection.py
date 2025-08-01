@@ -1,16 +1,17 @@
 import readline
 import socket
 
+from tpcc.config import HOST, PORT
+
 
 class Client:
     MAX_MEM_BUFFER_SIZE = 8192
-    PORT_DEFAULT = 8765
-    HOST = "127.0.0.1"
+
     sockfd = None
 
     def __init__(self) -> None:
-        readline.parse_and_bind("'\e[A': history-search-backward")
-        readline.parse_and_bind("'\e[B': history-search-forward")
+        readline.parse_and_bind(r"'\e[A': history-search-backward")
+        readline.parse_and_bind(r"'\e[B': history-search-forward")
 
         # parser = argparse.ArgumentParser()
         # parser.add_argument('-s', type=str, help='unix socket path')
@@ -22,7 +23,7 @@ class Client:
         # else:
         #     self.sockfd = self.__init_tcp_sock(self.HOST, args.p)
 
-        self.sockfd = self.__init_tcp_sock(self.HOST, self.PORT_DEFAULT)
+        self.sockfd = self.__init_tcp_sock(HOST, PORT)
 
         if self.sockfd is None:
             print("error occurs when initialize Client")

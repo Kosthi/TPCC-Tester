@@ -1,19 +1,21 @@
+import random
 import time
 
-from mysql.driver import SQLState
-from record.record import *
-from util import *
-
-
-# 输入一个列表，其中每项代表选择该项目的概率，返回选择的项目的下标
-def get_choice(choices):
-    r = random.random() * sum(choices)
-    upto = 0
-    for i in range(len(choices)):
-        if upto + choices[i] >= r:
-            return i
-        upto += choices[i]
-    assert False, "Shouldn't get here"
+from .datagen import (
+    get_choice,
+    get_c_id,
+    get_c_w_id_d_id,
+    get_d_id,
+    get_h_amount,
+    get_o_carrier_id,
+    get_ol_i_id,
+    get_ol_quantity,
+    get_ol_supply_w_id,
+    get_w_id,
+    query_cus_by,
+)
+from .mysql.const import SQLState
+from .record import put_new_order, put_txn
 
 
 def do_test(driver, lock, txns, txn_prob=None):

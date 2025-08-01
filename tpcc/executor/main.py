@@ -1,5 +1,4 @@
 import argparse
-import os
 import shutil
 import time
 from multiprocessing import Process, Lock
@@ -7,15 +6,22 @@ from multiprocessing import Process, Lock
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mysql.driver import CNT_W, Driver
-from record.record import analysis
-from record.record import build_db
-from tester import do_test
+from .mysql import CNT_W, Driver
+from .record import analysis, build_db
+from .tester import do_test
+from .config import (
+    DB_FILE,
+    NEW_ORDERS_FILE,
+    NEW_ORDERS_IMAGE,
+    RESULT_DIR,
+    STATISTICS_FILE,
+)
 
 
 def clean():
-    shutil.rmtree("TPCC-Tester/result")
-    os.mkdir("TPCC-Tester/result")
+    if RESULT_DIR.exists():
+        shutil.rmtree(RESULT_DIR)
+    RESULT_DIR.mkdir()
     build_db()
 
 
@@ -67,12 +73,12 @@ def output_result():
     print(f"Total Rollback Rate: {total_rollback_rate:.2f}%")
 
     # 写入 statistics_of_five_transactions.txt
-    with open("TPCC-Tester/result/statistics_of_five_transactions.txt", "w") as f:
+    with open(STATISTICS_FILE, "w") as f:
         f.writelines(statistics_lines)
 
     # 处理 new order 结果，写入 timecost_and_num_of_NewOrders.txt
     new_order_lines = [f"number: {n[0]}, time cost: {n[1]}\n" for n in new_order_result]
-    with open("TPCC-Tester/result/timecost_and_num_of_NewOrders.txt", "w") as f2:
+    with open(NEW_ORDERS_FILE, "w") as f2:
         f2.writelines(new_order_lines)
 
     # 画图并保存图像
@@ -82,12 +88,12 @@ def output_result():
     plt.plot(times, numbers)
     plt.ylabel("Number of New-Orders")
     plt.xlabel("Time unit: second")
-    plt.savefig("TPCC-Tester/result/timecost_and_num_of_NewOrders.jpg")
+    plt.savefig(NEW_ORDERS_IMAGE)
     plt.show()
 
     # 删除数据库文件
-    if os.path.exists("TPCC-Tester/result/rds.db"):
-        os.remove("TPCC-Tester/result/rds.db")
+    if DB_FILE.exists():
+        DB_FILE.unlink()
 
     # 返回 new order 成功数量
     return result[0]["success"]

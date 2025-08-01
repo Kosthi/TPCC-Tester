@@ -2,6 +2,18 @@ import datetime
 import random
 import string
 
+
+# 输入一个列表，其中每项代表选择该项目的概率，返回选择的项目的下标
+def get_choice(choices):
+    r = random.random() * sum(choices)
+    upto = 0
+    for i in range(len(choices)):
+        if upto + choices[i] >= r:
+            return i
+        upto += choices[i]
+    assert False, "Shouldn't get here"
+
+
 # _names = ['BAR', 'OUGHT', 'ABLE', 'PRI', 'PRES', 'ESE', 'ANTI', 'CALLY', 'ATION', 'EING']
 _names = [
     "BARR",
@@ -67,7 +79,7 @@ def get_c_last(k=1000, run=False):
 
 
 def current_time():
-    return str(datetime.datetime.now())[:19]
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_c_id():

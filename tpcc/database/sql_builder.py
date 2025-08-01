@@ -1,6 +1,4 @@
-from enum import Enum  # 引入枚举类型
-
-from db.table_layouts import *
+from .schema import *
 
 # Operator
 ALL = "*"
@@ -21,11 +19,6 @@ bt = ">"
 lt = "<"
 beq = ">="
 leq = "<="
-
-
-class SQLState(Enum):
-    SUCCESS = (7,)
-    ABORT = 3
 
 
 def select(client, table, col=ALL, where=False, order_by=False, asc=False):
@@ -54,6 +47,8 @@ def select(client, table, col=ALL, where=False, order_by=False, asc=False):
     result = client.send_cmd(sql)
 
     if result.startswith("abort"):
+        from .const import SQLState
+
         return SQLState.ABORT
     # print(result)
 
@@ -110,6 +105,8 @@ def insert(client, table, rows):
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
     if client.send_cmd(sql).startswith("abort"):
+        from .const import SQLState
+
         return SQLState.ABORT
 
 
@@ -132,6 +129,8 @@ def update(client, table, row, where=False):
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
     if client.send_cmd(sql).startswith("abort"):
+        from .const import SQLState
+
         return SQLState.ABORT
     # print(result)
 
@@ -148,4 +147,6 @@ def delete(client, table, where):
         sql = sql.replace("%s", str(i), 1)
     # print(sql)
     if client.send_cmd(sql).startswith("abort"):
+        from .const import SQLState
+
         return SQLState.ABORT
