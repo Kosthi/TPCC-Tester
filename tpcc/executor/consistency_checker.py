@@ -42,9 +42,22 @@ class ConsistencyCheckExecutor:
         checks.update(self._check_table_counts())
 
         # Advanced consistency checks
-        # checks.update(self._check_district_order_consistency())
+        checks.update(self._check_district_order_consistency())
+        checks.update(self._check_new_orders_consistency())
+        checks.update(self._check_order_line_consistency())
 
-        logger.info("Consistency checks completed")
+        # Summary of results
+        passed = sum(1 for v in checks.values() if v)
+        total = len(checks)
+
+        logger.info(f"Consistency checks completed: {passed}/{total} checks passed")
+
+        if passed == total:
+            logger.info("All consistency checks passed! ✓")
+        else:
+            failed_checks = [k for k, v in checks.items() if not v]
+            logger.warning(f"Failed checks: {failed_checks}")
+
         return checks
 
     def _check_table_counts(self) -> Dict[str, bool]:
@@ -102,40 +115,72 @@ class ConsistencyCheckExecutor:
         checks = {"district_order_consistency": True}
 
         try:
-            result = self.db.execute_query("""
-                SELECT d_w_id, d_id, d_next_o_id
-                FROM district
-                ORDER BY d_w_id, d_id
-            """)
+            warehouse_count = self.scale_factor
 
-            for d_w_id, d_id, d_next_o_id in result:
-                max_order = self.db.execute_query(
-                    """
-                    SELECT MAX(o_id)
-                    FROM orders
-                    WHERE o_w_id = ? AND o_d_id = ?
-                    """,
-                    (d_w_id, d_id),
-                )[0][0]
-
-                max_new_order = self.db.execute_query(
-                    """
-                    SELECT MAX(no_o_id)
-                    FROM new_orders
-                    WHERE no_w_id = ? AND no_d_id = ?
-                    """,
-                    (d_w_id, d_id),
-                )[0][0]
-
-                expected = 3001  # Initial next_o_id value
-                if max_order:
-                    expected = max_order + 1
-
-                if d_next_o_id != expected:
-                    logger.warning(
-                        f"District {d_w_id}-{d_id}: next_o_id={d_next_o_id}, expected={expected}"
+            for w_id in range(1, warehouse_count + 1):
+                for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
+                    # Get district next_o_id for this specific warehouse and district
+                    district_result = self.db.execute_query(
+                        "SELECT d_next_o_id FROM district WHERE d_w_id = ? AND d_id = ?",
+                        (w_id, d_id),
                     )
-                    checks["district_order_consistency"] = False
+
+                    if not district_result:
+                        logger.warning(f"District {w_id}-{d_id} not found")
+                        checks["district_order_consistency"] = False
+                        continue
+
+                    d_next_o_id = int(district_result[0][0])
+
+                    # Get max order ID for this warehouse and district
+                    max_order_result = self.db.execute_query(
+                        """
+                        SELECT MAX(o_id) as max_o_id
+                        FROM orders
+                        WHERE o_w_id = ?
+                          AND o_d_id = ?
+                        """,
+                        (w_id, d_id),
+                    )
+
+                    if not max_order_result:
+                        logger.warning(f"Orders {w_id}-{d_id} not found")
+                        checks["district_order_consistency"] = False
+                        continue
+
+                    max_o_id = int(max_order_result[0][0])
+
+                    # Get max new order ID for this warehouse and district
+                    max_new_order_result = self.db.execute_query(
+                        """
+                        SELECT MAX(no_o_id) as max_no_o_id
+                        FROM new_orders
+                        WHERE no_w_id = ?
+                          AND no_d_id = ?
+                        """,
+                        (w_id, d_id),
+                    )
+
+                    if not max_new_order_result:
+                        logger.warning(f"New orders {w_id}-{d_id} not found")
+                        checks["district_order_consistency"] = False
+                        continue
+
+                    max_no_o_id = int(max_new_order_result[0][0])
+
+                    # Check consistency: d_next_o_id - 1 should equal max_o_id and max_no_o_id
+                    expected = max_o_id + 1
+                    consistent = (
+                        d_next_o_id - 1 == max_o_id and d_next_o_id - 1 == max_no_o_id
+                    )
+
+                    if not consistent:
+                        logger.warning(
+                            f"District {w_id}-{d_id}: d_next_o_id={d_next_o_id}, "
+                            f"max_o_id={max_o_id}, max_no_o_id={max_no_o_id}, "
+                            f"expected_next_o_id={expected}"
+                        )
+                        checks["district_order_consistency"] = False
 
         except Exception as e:
             checks["district_order_consistency"] = False
@@ -271,5 +316,145 @@ class ConsistencyCheckExecutor:
         except Exception as e:
             logger.error(f"Business rule validation failed: {e}")
             checks["business_rule_validation"] = False
+
+        return checks
+
+    def _check_new_orders_consistency(self) -> Dict[str, bool]:
+        """Check consistency for new_orders table."""
+        checks = {"new_orders_consistency": True}
+
+        try:
+            warehouse_count = self.scale_factor
+
+            for w_id in range(1, warehouse_count + 1):
+                for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
+                    # Get new_orders count for this specific warehouse and district
+                    count_new_orders_result = self.db.execute_query(
+                        "SELECT COUNT(no_o_id) as count_no_o_id FROM new_orders WHERE no_w_id = ? AND no_d_id = ?",
+                        (w_id, d_id),
+                    )
+
+                    if not count_new_orders_result:
+                        logger.warning(
+                            f"New orders count_no_o_id with {w_id}-{d_id} not found"
+                        )
+                        checks["new_orders_consistency"] = False
+                        continue
+
+                    count_no_o_id = int(count_new_orders_result[0][0])
+
+                    # Get max order ID for this warehouse and district
+                    max_new_orders_result = self.db.execute_query(
+                        """
+                        SELECT MAX(no_o_id) as max_no_o_id
+                        FROM new_orders
+                        WHERE no_w_id = ?
+                          AND no_d_id = ?
+                        """,
+                        (w_id, d_id),
+                    )
+
+                    if not max_new_orders_result:
+                        logger.warning(
+                            f"New orders max_no_o_id with {w_id}-{d_id} not found"
+                        )
+                        checks["new_orders_consistency"] = False
+                        continue
+
+                    max_no_o_id = int(max_new_orders_result[0][0])
+
+                    # Get min new order ID for this warehouse and district
+                    min_new_orders_result = self.db.execute_query(
+                        """
+                        SELECT MIN(no_o_id) as min_no_o_id
+                        FROM new_orders
+                        WHERE no_w_id = ?
+                          AND no_d_id = ?
+                        """,
+                        (w_id, d_id),
+                    )
+
+                    if not min_new_orders_result:
+                        logger.warning(
+                            f"New orders min_no_o_id with {w_id}-{d_id} not found"
+                        )
+                        checks["new_orders_consistency"] = False
+                        continue
+
+                    min_no_o_id = int(min_new_orders_result[0][0])
+
+                    # Check consistency: new_orders - min_no_o_id + 1 should equal count_no_o_id
+                    expected = max_no_o_id - min_no_o_id + 1
+                    consistent = count_no_o_id == expected
+
+                    if not consistent:
+                        logger.warning(
+                            f"New orders {w_id}-{d_id}: count_no_o_id={count_no_o_id}, "
+                            f"max_no_o_id={max_no_o_id}, min_no_o_id={min_no_o_id}, "
+                            f"expected_count_no_o_id={expected}"
+                        )
+                        checks["new_orders_consistency"] = False
+
+        except Exception as e:
+            checks["new_orders_consistency"] = False
+            logger.error(f"New orders consistency check failed: {e}")
+
+        return checks
+
+    def _check_order_line_consistency(self) -> Dict[str, bool]:
+        """Check orders order line data consistency."""
+        checks = {"order_line_consistency": True}
+
+        try:
+            warehouse_count = self.scale_factor
+
+            for w_id in range(1, warehouse_count + 1):
+                for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
+                    # Get sum(o_ol_cnt) from orders for this specific warehouse and district
+                    sum_orders_result = self.db.execute_query(
+                        "SELECT SUM(o_ol_cnt) as sum_o_ol_cnt FROM orders WHERE o_w_id = ? AND o_d_id = ?",
+                        (w_id, d_id),
+                    )
+
+                    if not sum_orders_result:
+                        logger.warning(f"Orders {w_id}-{d_id} not found")
+                        checks["order_line_consistency"] = False
+                        continue
+
+                    sum_o_ol_cnt = int(sum_orders_result[0][0])
+
+                    # Get count from order_line for this warehouse and district
+                    count_order_line_result = self.db.execute_query(
+                        """
+                        SELECT COUNT(ol_o_id) as count_ol_o_id
+                        FROM order_line
+                        WHERE ol_w_id = ?
+                          AND ol_d_id = ?
+                        """,
+                        (w_id, d_id),
+                    )
+
+                    if not count_order_line_result:
+                        logger.warning(f"Order line {w_id}-{d_id} not found")
+                        checks["order_line_consistency"] = False
+                        continue
+
+                    count_ol_o_id = int(count_order_line_result[0][0])
+
+                    # Check consistency: sum_o_ol_cnt should equal count_ol_o_id
+                    expected = count_ol_o_id
+                    consistent = sum_o_ol_cnt == count_ol_o_id
+
+                    if not consistent:
+                        logger.warning(
+                            f"Order line {w_id}-{d_id}: sum_o_ol_cnt={sum_o_ol_cnt}, "
+                            f"count_ol_o_id={count_ol_o_id}, "
+                            f"expected_sum_o_ol_cnt={expected}"
+                        )
+                        checks["order_line_consistency"] = False
+
+        except Exception as e:
+            checks["order_line_consistency"] = False
+            logger.error(f"Order line consistency check failed: {e}")
 
         return checks

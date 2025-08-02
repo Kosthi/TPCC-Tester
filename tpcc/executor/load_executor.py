@@ -177,9 +177,9 @@ class LoadExecutor:
                     """,
                     (
                         order.o_id,
-                        order.o_c_id,
                         order.o_d_id,
                         order.o_w_id,
+                        order.o_c_id,
                         order.o_entry_d,
                         order.o_carrier_id,
                         order.o_ol_cnt,
