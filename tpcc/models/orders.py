@@ -15,7 +15,7 @@ class Orders:
     o_d_id: int
     o_w_id: int
     o_entry_d: str
-    o_carrier_id: Optional[int]
+    o_carrier_id: int
     o_ol_cnt: int
     o_all_local: int
 
@@ -31,7 +31,5 @@ class Orders:
             raise ValueError("Warehouse ID must be a positive integer")
         if not isinstance(self.o_ol_cnt, int) or not 5 <= self.o_ol_cnt <= 15:
             raise ValueError("Order line count must be between 5 and 15")
-        if self.o_carrier_id is not None and (
-            not isinstance(self.o_carrier_id, int) or not 1 <= self.o_carrier_id <= 10
-        ):
-            raise ValueError("Carrier ID must be between 1 and 10 or None")
+        if not isinstance(self.o_carrier_id, int) or not 0 <= self.o_carrier_id <= 10:
+            raise ValueError("Carrier ID must be between 0 and 10")

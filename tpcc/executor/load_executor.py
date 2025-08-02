@@ -7,7 +7,17 @@ import logging
 from typing import Iterator
 
 from ..database.database_connection import DatabaseConnection
-from ..models import Warehouse, District, Item, Customer, Stock, Orders, NewOrder
+from ..models import (
+    Warehouse,
+    District,
+    Item,
+    Customer,
+    Stock,
+    Orders,
+    NewOrder,
+    History,
+    OrderLine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +202,54 @@ class LoadExecutor:
                 )
         logger.info("New orders data loaded successfully")
 
+    def load_history(self, history: Iterator[History]) -> None:
+        """Load history data."""
+        logger.info("Loading history data...")
+        with self.db.get_cursor() as cursor:
+            for h in history:
+                cursor.execute(
+                    """
+                    INSERT INTO history
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        h.h_c_id,
+                        h.h_c_d_id,
+                        h.h_c_w_id,
+                        h.h_d_id,
+                        h.h_w_id,
+                        h.h_date,
+                        h.h_amount,
+                        h.h_data,
+                    ),
+                )
+        logger.info("History data loaded successfully")
+
+    def load_order_lines(self, order_lines: Iterator[OrderLine]) -> None:
+        """Load order line data."""
+        logger.info("Loading order line data...")
+        with self.db.get_cursor() as cursor:
+            for ol in order_lines:
+                cursor.execute(
+                    """
+                    INSERT INTO order_line
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        ol.ol_o_id,
+                        ol.ol_d_id,
+                        ol.ol_w_id,
+                        ol.ol_number,
+                        ol.ol_i_id,
+                        ol.ol_supply_w_id,
+                        ol.ol_delivery_d,
+                        ol.ol_quantity,
+                        ol.ol_amount,
+                        ol.ol_dist_info,
+                    ),
+                )
+        logger.info("Order line data loaded successfully")
+
     def load_all_data(self, data_generators: dict) -> None:
         """Load all TPC-C data in correct order.
 
@@ -208,5 +266,7 @@ class LoadExecutor:
         self.load_stock(data_generators["stock"])
         self.load_orders(data_generators["orders"])
         self.load_new_orders(data_generators["new_orders"])
+        self.load_history(data_generators["history"])
+        self.load_order_lines(data_generators["order_lines"])
 
         logger.info("All TPC-C data loaded successfully")

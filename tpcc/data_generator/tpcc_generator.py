@@ -168,7 +168,7 @@ class TpccDataGenerator:
         for w_id in range(1, warehouse_count + 1):
             for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
                 for o_id in range(1, self.ORDERS_PER_DISTRICT + 1):
-                    carrier_id = None if o_id > 2100 else self.random.random_int(1, 10)
+                    carrier_id = 0 if o_id > 2100 else self.random.random_int(1, 10)
 
                     yield Orders(
                         o_id=o_id,
@@ -177,7 +177,7 @@ class TpccDataGenerator:
                         o_w_id=w_id,
                         o_entry_d=self.random.generate_timestamp(),
                         o_carrier_id=carrier_id,
-                        o_ol_cnt=self.random.random_int(5, 15),
+                        o_ol_cnt=10,
                         o_all_local=1,
                     )
 
@@ -190,6 +190,56 @@ class TpccDataGenerator:
                 for no_id in range(2101, 2101 + self.NEW_ORDERS_PER_DISTRICT):
                     yield NewOrder(no_o_id=no_id, no_d_id=d_id, no_w_id=w_id)
 
+    def generate_history(self) -> Iterator[History]:
+        """Generate history data for all customers."""
+        warehouse_count = self.WAREHOUSES_PER_SCALE * self.scale_factor
+
+        for w_id in range(1, warehouse_count + 1):
+            for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
+                for c_id in range(1, self.CUSTOMERS_PER_DISTRICT + 1):
+                    yield History(
+                        h_c_id=c_id,
+                        h_c_d_id=d_id,
+                        h_c_w_id=w_id,
+                        h_d_id=d_id,
+                        h_w_id=w_id,
+                        h_date=self.random.generate_timestamp(),
+                        h_amount=10.0,  # Initial payment
+                        h_data="Initial deposit",
+                    )
+
+    def generate_order_lines(self) -> Iterator[OrderLine]:
+        """Generate order line data for all orders."""
+        warehouse_count = self.WAREHOUSES_PER_SCALE * self.scale_factor
+
+        for w_id in range(1, warehouse_count + 1):
+            for d_id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1):
+                for o_id in range(1, self.ORDERS_PER_DISTRICT + 1):
+                    ol_cnt = 10
+
+                    for ol_number in range(1, ol_cnt + 1):
+                        i_id = self.random.random_int(1, self.ITEMS_TOTAL)
+                        quantity = self.random.random_int(1, 10)
+                        amount = quantity * self.random.generate_price()
+
+                        # For orders > 2100, delivery info is populated
+                        delivery_d = "1970-01-01 00:00:00"  # default value
+                        if o_id <= 2100:
+                            delivery_d = self.random.generate_timestamp()
+
+                        yield OrderLine(
+                            ol_o_id=o_id,
+                            ol_d_id=d_id,
+                            ol_w_id=w_id,
+                            ol_number=ol_number,
+                            ol_i_id=i_id,
+                            ol_supply_w_id=w_id,
+                            ol_delivery_d=delivery_d,
+                            ol_quantity=quantity,
+                            ol_amount=amount,
+                            ol_dist_info=self.random.generate_dist_info(),
+                        )
+
     def generate_all_data(self) -> Dict[str, Iterator[Any]]:
         """Generate all TPC-C data types as iterators."""
         return {
@@ -200,6 +250,8 @@ class TpccDataGenerator:
             "stock": self.generate_stock(),
             "orders": self.generate_orders(),
             "new_orders": self.generate_new_orders(),
+            "history": self.generate_history(),
+            "order_lines": self.generate_order_lines(),
         }
 
     # Methods for concurrent transaction data generation

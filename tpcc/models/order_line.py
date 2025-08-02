@@ -37,5 +37,5 @@ class OrderLine:
             raise ValueError("Supply warehouse ID must be a positive integer")
         if not isinstance(self.ol_quantity, int) or self.ol_quantity <= 0:
             raise ValueError("Quantity must be a positive integer")
-        if not isinstance(self.ol_amount, (int, float)) or self.ol_amount >= 0:
+        if not isinstance(self.ol_amount, (int, float)) or self.ol_amount < 0:
             raise ValueError("Amount must be non-negative")
