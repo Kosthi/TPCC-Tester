@@ -51,44 +51,49 @@ class ConsistencyCheckExecutor:
         """Check table row counts against expected values."""
         checks = {}
 
-        # Check warehouse count
-        try:
-            result = self.db.execute_query("SELECT COUNT(*) FROM warehouse")
-            expected = self.scale_factor
-            actual = int(result[0][0])
-            checks["warehouse_count"] = actual == expected
-            logger.info(
-                f"Warehouse count: {actual}/{expected} {'✓' if checks['warehouse_count'] else '✗'}"
-            )
-        except Exception as e:
-            checks["warehouse_count"] = False
-            logger.error(f"Warehouse count check failed: {e}")
+        # Define the check configuration for all tables
+        table_checks = [
+            ("warehouse", self.scale_factor),
+            ("district", self.scale_factor * self.DISTRICTS_PER_WAREHOUSE),
+            ("item", self.ITEMS_TOTAL),
+            (
+                "customer",
+                self.scale_factor * self.DISTRICTS_PER_WAREHOUSE * 3000,
+            ),  # 3000 customers per district
+            (
+                "stock",
+                self.scale_factor * self.ITEMS_TOTAL,
+            ),  # One stock record per item per warehouse
+            (
+                "orders",
+                self.scale_factor * self.DISTRICTS_PER_WAREHOUSE * 3000,
+            ),  # One order per customer
+            (
+                "order_line",
+                self.scale_factor * self.DISTRICTS_PER_WAREHOUSE * 3000 * 10,
+            ),  # Average of 10 lines per order
+            (
+                "new_orders",
+                self.scale_factor * self.DISTRICTS_PER_WAREHOUSE * 900,
+            ),  # 900 new orders per district
+            (
+                "history",
+                self.scale_factor * self.DISTRICTS_PER_WAREHOUSE * 3000,
+            ),  # One history record per customer
+        ]
 
-        # Check district count
-        try:
-            result = self.db.execute_query("SELECT COUNT(*) FROM district")
-            expected = self.scale_factor * self.DISTRICTS_PER_WAREHOUSE
-            actual = int(result[0][0])
-            checks["district_count"] = actual == expected
-            logger.info(
-                f"District count: {actual}/{expected} {'✓' if checks['district_count'] else '✗'}"
-            )
-        except Exception as e:
-            checks["district_count"] = False
-            logger.error(f"District count check failed: {e}")
-
-        # Check item count
-        try:
-            result = self.db.execute_query("SELECT COUNT(*) FROM item")
-            expected = self.ITEMS_TOTAL
-            actual = int(result[0][0])
-            checks["item_count"] = actual == expected
-            logger.info(
-                f"Item count: {actual}/{expected} {'✓' if checks['item_count'] else '✗'}"
-            )
-        except Exception as e:
-            checks["item_count"] = False
-            logger.error(f"Item count check failed: {e}")
+        for table_name, expected in table_checks:
+            check_name = f"{table_name}_count"
+            try:
+                result = self.db.execute_query(f"SELECT COUNT(*) FROM {table_name}")
+                actual = int(result[0][0])
+                checks[check_name] = actual == expected
+                logger.info(
+                    f"{table_name.capitalize()} count: {actual}/{expected} {'✓' if checks[check_name] else '✗'}"
+                )
+            except Exception as e:
+                checks[check_name] = False
+                logger.error(f"{table_name.capitalize()} count check failed: {e}")
 
         return checks
 
