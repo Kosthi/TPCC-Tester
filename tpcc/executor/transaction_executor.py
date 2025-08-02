@@ -3,14 +3,13 @@ Concurrent TPC-C benchmark executor with multi-threading support.
 Provides multi-threaded read-write transaction execution capabilities.
 """
 
-import argparse
 import logging
 import threading
 import time
 import random
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -302,7 +301,7 @@ class TransactionExecutor:
             db.execute_update("COMMIT")
             return True
 
-        except Exception as e:
+        except Exception:
             db.execute_update("ROLLBACK")
             return False
 

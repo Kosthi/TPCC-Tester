@@ -3,7 +3,6 @@ Warehouse model for TPC-C benchmark.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

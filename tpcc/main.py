@@ -121,7 +121,7 @@ def main():
                 print(f"Scale Factor: {args.scale} warehouses")
                 print(f"Read-Write Ratio: {args.rw_ratio}")
 
-                print(f"\nPerformance:")
+                print("\nPerformance:")
                 print(f"  Total Transactions: {result.total_transactions:,}")
                 print(f"  Successful: {result.successful_transactions:,}")
                 print(f"  Failed: {result.failed_transactions:,}")
@@ -134,7 +134,7 @@ def main():
                 )
                 print(f"  Throughput: {result.throughput_tps:.2f} TPS")
 
-                print(f"\nTransaction Mix:")
+                print("\nTransaction Mix:")
                 txn_names = [
                     "NewOrder",
                     "Payment",

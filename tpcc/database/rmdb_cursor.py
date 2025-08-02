@@ -3,8 +3,7 @@ RMDB cursor implementation for TPC-C benchmark.
 Adapts the custom RMDB protocol to a cursor-like interface.
 """
 
-import re
-from typing import List, Tuple, Any, Optional, Iterator
+from typing import List, Tuple, Optional, Iterator
 from enum import Enum
 
 from tpcc.database.connection import Client

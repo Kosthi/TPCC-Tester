@@ -5,7 +5,7 @@ Based on the improved design from tpcc module.
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict
 import sqlite3
 
 from .database_connection import DatabaseConnection

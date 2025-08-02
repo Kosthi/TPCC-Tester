@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from tpcc.database.database_connection import DatabaseConnection
-from tpcc.database.rmdb_cursor import RMDBCursorAdapter, RMDBQueryExecutor
+from tpcc.database.rmdb_cursor import RMDBQueryExecutor
 
 
 def test_rmdb_connection():

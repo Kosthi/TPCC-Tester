@@ -5,12 +5,11 @@ Supports custom RMDB protocol with pipe-delimited response format.
 """
 
 import logging
-import traceback
 from contextlib import contextmanager
-from typing import Optional, Any, Iterator
+from typing import Optional
 
 from tpcc.database.connection import Client
-from tpcc.database.rmdb_cursor import RMDBCursorAdapter, RMDBQueryExecutor
+from tpcc.database.rmdb_cursor import RMDBCursorAdapter
 
 logger = logging.getLogger(__name__)
 

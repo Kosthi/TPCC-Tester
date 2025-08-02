@@ -4,9 +4,7 @@ Refactored to provide clean separation of concerns and better maintainability.
 """
 
 import logging
-import time
-from typing import Dict, List, Tuple, Optional, Any, Iterator
-from datetime import datetime
+from typing import Dict, Any
 
 from ..database.database_connection import DatabaseConnection
 from ..database.schema_manager import SchemaManager

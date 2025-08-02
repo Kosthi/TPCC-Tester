@@ -4,7 +4,7 @@ Refactored based on tpcc module's design for better maintainability.
 """
 
 import logging
-from typing import List, Dict, Any, Iterator, Tuple
+from typing import Dict, Any, Iterator
 from datetime import datetime, timedelta
 import random
 import string

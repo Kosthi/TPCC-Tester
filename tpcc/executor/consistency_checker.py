@@ -4,7 +4,7 @@ Provides comprehensive data validation and statistics collection.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from ..database.database_connection import DatabaseConnection
 
