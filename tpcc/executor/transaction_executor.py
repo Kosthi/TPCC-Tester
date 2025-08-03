@@ -540,19 +540,74 @@ class TransactionExecutor:
         o_carrier_id = self.data_generator.get_random_carrier_id()
 
         try:
-            # Simplified delivery transaction
-            query = """
-                    UPDATE orders
-                    SET o_carrier_id = ?
-                    WHERE o_w_id = ?
-                      AND o_d_id = ?
-                      AND
-                        o_id IN (SELECT MIN(o_id) FROM orders WHERE o_w_id = ? AND o_d_id = ? AND o_carrier_id IS NULL) \
-                    """
+            db.execute_update("BEGIN")
+
             for d_id in range(1, 11):  # 10 districts per warehouse
-                db.execute_update(query, (o_carrier_id, w_id, d_id, w_id, d_id))
+                # Step 1: Find the oldest undelivered order (min o_id from new_orders)
+                new_order_result = db.execute_query(
+                    "SELECT MIN(no_o_id) FROM new_orders WHERE no_d_id = ? AND no_w_id = ?",
+                    (d_id, w_id),
+                )
+
+                if not new_order_result:
+                    continue  # No undelivered orders for this district
+
+                o_id = int(new_order_result[0][0])
+
+                # Step 2: Remove the order from new_orders
+                db.execute_update(
+                    "DELETE FROM new_orders WHERE no_o_id = ? AND no_d_id = ? AND no_w_id = ?",
+                    (o_id, d_id, w_id),
+                )
+
+                # Step 3: Update the order with carrier_id
+                db.execute_update(
+                    "UPDATE orders SET o_carrier_id = ? WHERE o_id = ? AND o_d_id = ? AND o_w_id = ?",
+                    (o_carrier_id, o_id, d_id, w_id),
+                )
+
+                # Step 4: Update all order_lines with delivery date
+                delivery_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                db.execute_update(
+                    "UPDATE order_line SET ol_delivery_d = ? WHERE ol_o_id = ? AND ol_d_id = ? AND ol_w_id = ?",
+                    (delivery_date, o_id, d_id, w_id),
+                )
+
+                # Step 5: Get customer ID and calculate order total
+                order_result = db.execute_query(
+                    "SELECT o_c_id FROM orders WHERE o_id = ? AND o_d_id = ? AND o_w_id = ?",
+                    (o_id, d_id, w_id),
+                )
+                if not order_result:
+                    db.execute_update("ROLLBACK")
+                    return False
+
+                o_c_id = int(order_result[0][0])
+
+                # Calculate total amount for this order
+                total_result = db.execute_query(
+                    "SELECT SUM(ol_amount) FROM order_line WHERE ol_o_id = ? AND ol_d_id = ? AND ol_w_id = ?",
+                    (o_id, d_id, w_id),
+                )
+                if not total_result:
+                    db.execute_update("ROLLBACK")
+                    return False
+
+                order_total = float(total_result[0][0])
+
+                # Step 6: Update customer balance and delivery count
+                db.execute_update(
+                    "UPDATE customer SET c_balance = c_balance+?, c_delivery_cnt = c_delivery_cnt+1 "
+                    "WHERE c_id = ? AND c_d_id = ? AND c_w_id = ?",
+                    (order_total, o_c_id, d_id, w_id),
+                )
+
+            db.execute_update("COMMIT")
             return True
-        except Exception:
+
+        except Exception as e:
+            logger.error(f"Delivery transaction failed: {e}")
+            db.execute_update("ROLLBACK")
             return False
 
     def _execute_order_status(self, db: DatabaseConnection) -> bool:

@@ -61,7 +61,7 @@ def main():
         "--txn-probs",
         type=float,
         nargs=5,
-        default=[0.5, 0.5, 0.00, 0.00, 0.00],
+        default=[0.45, 0.43, 0.04, 0.00, 0.00],
         metavar=("NEWORDER", "PAYMENT", "DELIVERY", "ORDERSTATUS", "STOCKLEVEL"),
         help="Transaction type probabilities",
     )
