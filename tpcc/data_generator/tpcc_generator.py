@@ -282,7 +282,7 @@ class TpccDataGenerator:
     def get_payment_customer_warehouse(self, w_id: int, d_id: int) -> tuple[int, int]:
         """Get customer warehouse and district for payment transaction."""
         # 85% chance customer is in same warehouse
-        if self.random.random_int(1, 100) <= 85:
+        if self.scale_factor == 1 or self.random.random_int(1, 100) <= 85:
             c_w_id = w_id
             # 15% chance customer is in different district
             if self.random.random_int(1, 100) <= 15:
@@ -291,9 +291,12 @@ class TpccDataGenerator:
                 c_d_id = d_id
         else:
             # Customer in different warehouse
-            c_w_id = self.get_random_warehouse_id()
-            while c_w_id == w_id:  # Ensure different warehouse
-                c_w_id = self.get_random_warehouse_id()
+            available_warehouses = [
+                id for id in range(1, self.DISTRICTS_PER_WAREHOUSE + 1) if id != w_id
+            ]
+            if not available_warehouses:
+                raise ValueError("No alternative warehouses available")
+            c_w_id = random.choice(available_warehouses)
             c_d_id = self.get_random_district_id()
 
         return c_w_id, c_d_id
@@ -309,6 +312,12 @@ class TpccDataGenerator:
     def get_random_stock_threshold(self) -> int:
         """Get random stock level threshold (10-20)."""
         return self.random.random_int(10, 20)
+
+    def get_random_customer_last_name(self) -> str:
+        """Get random customer last name using TPC-C syllable system."""
+        # Generate a random customer ID (1-3000) to get corresponding last name
+        customer_id = self.get_random_customer_id()
+        return self.random.generate_last_name(customer_id)
 
 
 class RandomDataGenerator:

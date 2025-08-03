@@ -73,7 +73,7 @@ class TpccExecutor:
         num_threads: int = 1,
         transactions_per_thread: int = 100,
         read_write_ratio: float = 0.5,
-        duration_seconds: int = 60,
+        duration_seconds: int = 0,
         **kwargs,
     ) -> BenchmarkResult:
         """Run TPC-C benchmark with transaction execution.

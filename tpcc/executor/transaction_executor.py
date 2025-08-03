@@ -15,7 +15,6 @@ from datetime import datetime
 
 from tpcc.database.database_connection import DatabaseConnection
 from tpcc.data_generator.tpcc_generator import TpccDataGenerator
-from tpcc.models import *
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +72,29 @@ class TransactionExecutor:
         """Get thread-local database connection."""
         if not hasattr(self._thread_local, "db"):
             # Create new connection for this thread
-            self._thread_local.db = DatabaseConnection(
-                host=self.db.host, port=self.db.port
-            )
-            self._thread_local.db.connect()
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    self._thread_local.db = DatabaseConnection(
+                        host=self.db.host, port=self.db.port
+                    )
+                    self._thread_local.db.connect()
+                    logger.debug(
+                        f"Created database connection for thread {threading.current_thread().name}"
+                    )
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    logger.warning(
+                        f"Failed to create database connection (attempt {retry_count}/{max_retries}): {e}"
+                    )
+                    if retry_count >= max_retries:
+                        logger.error(
+                            f"Failed to create database connection after {max_retries} attempts: {e}"
+                        )
+                        raise
+                    time.sleep(0.1 * retry_count)  # Exponential backoff
         return self._thread_local.db
 
     def _execute_transaction(
@@ -93,43 +111,80 @@ class TransactionExecutor:
         """
         start_time = time.time()
         timestamp = datetime.now()
+        max_retries = 3
+        retry_delay = 0.1  # 100ms
+        max_execution_time = 60  # 60 second timeout per transaction
 
-        try:
-            db = self._get_thread_db_connection()
+        for attempt in range(max_retries):
+            try:
+                db = self._get_thread_db_connection()
 
-            if transaction_type == self.NEW_ORDER:
-                success = self._execute_new_order(db)
-            elif transaction_type == self.PAYMENT:
-                success = self._execute_payment(db)
-            elif transaction_type == self.DELIVERY:
-                success = self._execute_delivery(db)
-            elif transaction_type == self.ORDER_STATUS:
-                success = self._execute_order_status(db)
-            elif transaction_type == self.STOCK_LEVEL:
-                success = self._execute_stock_level(db)
-            else:
-                raise ValueError(f"Unknown transaction type: {transaction_type}")
+                if transaction_type == self.NEW_ORDER:
+                    success = self._execute_new_order(db)
+                elif transaction_type == self.PAYMENT:
+                    success = self._execute_payment(db)
+                elif transaction_type == self.DELIVERY:
+                    success = self._execute_delivery(db)
+                elif transaction_type == self.ORDER_STATUS:
+                    success = self._execute_order_status(db)
+                elif transaction_type == self.STOCK_LEVEL:
+                    success = self._execute_stock_level(db)
+                else:
+                    raise ValueError(f"Unknown transaction type: {transaction_type}")
 
-            execution_time = time.time() - start_time
+                execution_time = time.time() - start_time
 
-            return TransactionResult(
-                transaction_type=transaction_type,
-                success=success,
-                execution_time=execution_time,
-                timestamp=timestamp,
-                thread_id=thread_id,
-            )
+                if execution_time > max_execution_time:
+                    logger.warning(
+                        f"Transaction type {transaction_type} took {execution_time:.2f}s, exceeding timeout"
+                    )
 
-        except Exception as e:
-            logger.error(f"Transaction failed: {e}")
-            execution_time = time.time() - start_time
-            return TransactionResult(
-                transaction_type=transaction_type,
-                success=False,
-                execution_time=execution_time,
-                timestamp=timestamp,
-                thread_id=thread_id,
-            )
+                if attempt > 0:
+                    logger.debug(f"Transaction succeeded after {attempt + 1} attempts")
+
+                return TransactionResult(
+                    transaction_type=transaction_type,
+                    success=success,
+                    execution_time=execution_time,
+                    timestamp=timestamp,
+                    thread_id=thread_id,
+                )
+
+            except Exception as e:
+                retry_count = attempt + 1
+                execution_time = time.time() - start_time
+
+                # Check for deadlock or timeout specific errors
+                error_msg = str(e).lower()
+                is_deadlock = (
+                    "deadlock" in error_msg
+                    or "timeout" in error_msg
+                    or "lock" in error_msg
+                )
+
+                logger.warning(f"Transaction attempt {retry_count} failed: {e}")
+                if is_deadlock:
+                    logger.info(
+                        "Detected potential deadlock, will retry with longer delay"
+                    )
+
+                if retry_count < max_retries:
+                    # Exponential backoff with longer delay for deadlocks
+                    delay = (
+                        0.5 * retry_count if is_deadlock else retry_delay * retry_count
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        f"Transaction failed after {max_retries} attempts: {e}"
+                    )
+                    return TransactionResult(
+                        transaction_type=transaction_type,
+                        success=False,
+                        execution_time=execution_time,
+                        timestamp=timestamp,
+                        thread_id=thread_id,
+                    )
 
     def _execute_new_order(self, db: DatabaseConnection) -> bool:
         """Execute NewOrder transaction with complete TPC-C logic."""
@@ -239,7 +294,7 @@ class TransactionExecutor:
                     stock_info[0]
                 )
                 s_quantity = int(s_quantity)
-                s_ytd = float(s_ytd)
+                s_ytd = int(s_ytd)
                 s_order_cnt = int(s_order_cnt)
                 s_remote_cnt = int(s_remote_cnt)
 
@@ -310,29 +365,173 @@ class TransactionExecutor:
         w_id = self.data_generator.get_random_warehouse_id()
         d_id = self.data_generator.get_random_district_id()
         c_w_id, c_d_id = self.data_generator.get_payment_customer_warehouse(w_id, d_id)
+        amount = self.data_generator.get_random_payment_amount()
+
+        # Determine customer selection method (60% by ID, 40% by last name)
+        if random.random() < 0.6:
+            c_id = self.data_generator.get_random_customer_id()
+            customer_query = c_id
+            by_id = True
+        else:
+            c_last = self.data_generator.get_random_customer_last_name()
+            customer_query = c_last
+            by_id = False
 
         try:
-            query = """
-                    UPDATE customer
-                    SET c_balance     = c_balance - ?,
-                        c_ytd_payment = c_ytd_payment + ?
-                    WHERE c_w_id = ?
-                      AND c_d_id = ?
-                      AND c_id = ? \
-                    """
-            amount = self.data_generator.get_random_payment_amount()
+            db.execute_update("BEGIN")
+
+            # Step 1: Update warehouse YTD
+            warehouse_result = db.execute_query(
+                "SELECT w_name, w_street_1, w_street_2, w_city, w_state, w_zip, w_ytd "
+                "FROM warehouse WHERE w_id = ?",
+                (w_id,),
+            )
+
+            if not warehouse_result:
+                db.execute_update("ROLLBACK")
+                return False
+
+            w_name, w_street_1, w_street_2, w_city, w_state, w_zip, w_ytd = (
+                warehouse_result[0]
+            )
+
             db.execute_update(
-                query,
+                "UPDATE warehouse SET w_ytd = w_ytd+? WHERE w_id = ?", (amount, w_id)
+            )
+
+            # Step 2: Update district YTD
+            district_result = db.execute_query(
+                "SELECT d_name, d_street_1, d_street_2, d_city, d_state, d_zip, d_ytd "
+                "FROM district WHERE d_w_id = ? AND d_id = ?",
+                (w_id, d_id),
+            )
+
+            if not district_result:
+                db.execute_update("ROLLBACK")
+                return False
+
+            d_name, d_street_1, d_street_2, d_city, d_state, d_zip, d_ytd = (
+                district_result[0]
+            )
+
+            db.execute_update(
+                "UPDATE district SET d_ytd = d_ytd+? WHERE d_w_id = ? AND d_id = ?",
+                (amount, w_id, d_id),
+            )
+
+            # Step 3: Get customer information and update
+            if by_id:
+                customer_result = db.execute_query(
+                    "SELECT c_id, c_first, c_middle, c_last, c_street_1, c_street_2, "
+                    "c_city, c_state, c_zip, c_phone, c_since, c_credit, c_credit_lim, "
+                    "c_discount, c_balance, c_ytd_payment, c_payment_cnt, c_data "
+                    "FROM customer WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?",
+                    (c_w_id, c_d_id, customer_query),
+                )
+            else:
+                customer_result = db.execute_query(
+                    "SELECT c_id, c_first, c_middle, c_last, c_street_1, c_street_2, "
+                    "c_city, c_state, c_zip, c_phone, c_since, c_credit, c_credit_lim, "
+                    "c_discount, c_balance, c_ytd_payment, c_payment_cnt, c_data "
+                    "FROM customer WHERE c_w_id = ? AND c_d_id = ? AND c_last = ? "
+                    "ORDER BY c_first",
+                    (c_w_id, c_d_id, customer_query),
+                )
+
+            if not customer_result:
+                db.execute_update("ROLLBACK")
+                return False
+
+            # Handle multiple customers with same last name (select middle one)
+            if by_id:
+                customer = customer_result[0]
+            else:
+                middle_idx = len(customer_result) // 2
+                customer = customer_result[middle_idx]
+
+            (
+                c_id,
+                c_first,
+                c_middle,
+                c_last,
+                c_street_1,
+                c_street_2,
+                c_city,
+                c_state,
+                c_zip,
+                c_phone,
+                c_since,
+                c_credit,
+                c_credit_lim,
+                c_discount,
+                c_balance,
+                c_ytd_payment,
+                c_payment_cnt,
+                c_data,
+            ) = customer
+
+            # Step 4: Update customer based on credit type
+            c_id = int(c_id)
+            new_balance = float(c_balance) - amount
+            new_ytd_payment = float(c_ytd_payment) + amount
+            new_payment_cnt = int(c_payment_cnt) + 1
+
+            if c_credit == "BC":
+                # Bad credit: update c_data with payment info
+                payment_info = f"{c_id}{c_d_id}{c_w_id}{d_id}{w_id}{amount:.2f}"
+                new_data = payment_info + str(c_data)
+                new_data = new_data[:300]  # Truncate to 300 characters
+
+                db.execute_update(
+                    "UPDATE customer SET c_balance = ?, c_ytd_payment = ?, c_payment_cnt = ?, c_data = ? "
+                    "WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?",
+                    (
+                        new_balance,
+                        new_ytd_payment,
+                        new_payment_cnt,
+                        new_data,
+                        c_w_id,
+                        c_d_id,
+                        c_id,
+                    ),
+                )
+            else:
+                # Good credit: simple update
+                db.execute_update(
+                    "UPDATE customer SET c_balance = ?, c_ytd_payment = ?, c_payment_cnt = ? "
+                    "WHERE c_w_id = ? AND c_d_id = ? AND c_id = ?",
+                    (
+                        new_balance,
+                        new_ytd_payment,
+                        new_payment_cnt,
+                        c_w_id,
+                        c_d_id,
+                        c_id,
+                    ),
+                )
+
+            # Step 5: Insert history record
+            h_data = w_name[:10] + "    " + d_name[:10]
+            db.execute_update(
+                "INSERT INTO history VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    amount,
-                    amount,
-                    c_w_id,
+                    c_id,
                     c_d_id,
-                    self.data_generator.get_random_customer_id(),
+                    c_w_id,
+                    d_id,
+                    w_id,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    amount,
+                    h_data,
                 ),
             )
+
+            db.execute_update("COMMIT")
             return True
-        except Exception:
+
+        except Exception as e:
+            logger.error(f"Payment transaction failed: {e}")
+            db.execute_update("ROLLBACK")
             return False
 
     def _execute_delivery(self, db: DatabaseConnection) -> bool:
@@ -420,6 +619,8 @@ class TransactionExecutor:
         Returns:
             BenchmarkResult with aggregated metrics
         """
+        import signal
+
         if transaction_probabilities is None:
             # Default TPC-C mix: 45% NewOrder, 43% Payment, 4% each for others
             transaction_probabilities = [0.45, 0.43, 0.04, 0.04, 0.04]
@@ -427,9 +628,22 @@ class TransactionExecutor:
         logger.info(f"Starting concurrent benchmark with {num_threads} threads")
         logger.info(f"Transactions per thread: {transactions_per_thread}")
         logger.info(f"Read-write ratio: {read_write_ratio}")
+        logger.info("Press Ctrl+C to cancel benchmark and clean up resources")
 
         start_time = time.time()
         all_results = []
+
+        def signal_handler(signum, frame):
+            logger.info("Received interrupt signal, cancelling benchmark...")
+            # Close all thread connections
+            self.close_thread_connections()
+            # Force exit the process immediately
+            import os
+
+            os._exit(0)
+
+        # Set up signal handler for graceful shutdown
+        signal.signal(signal.SIGINT, signal_handler)
 
         # Use ThreadPoolExecutor for better thread management
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -437,28 +651,21 @@ class TransactionExecutor:
 
             # Submit tasks for each thread
             for thread_id in range(num_threads):
-                for _ in range(transactions_per_thread):
-                    # Select transaction type based on read-write ratio
-                    if random.random() < read_write_ratio:
-                        # Read-write transactions (NewOrder, Payment, Delivery)
-                        txn_type = self._select_transaction_type(
-                            [0.5, 0.0, 0.0, 0.0, 0.0]
-                        )
-                    else:
-                        # Read-only transactions (OrderStatus, StockLevel)
-                        txn_type = self._select_transaction_type(
-                            [0.5, 0.0, 0.0, 0.0, 0.0]
-                        )
+                # Submit all transactions for this thread as a batch
+                future = executor.submit(
+                    self._execute_thread_transactions,
+                    thread_id,
+                    transactions_per_thread,
+                    read_write_ratio,
+                    transaction_probabilities,
+                )
+                futures.append(future)
 
-                    future = executor.submit(
-                        self._execute_transaction, txn_type, thread_id
-                    )
-                    futures.append(future)
-
-            # Collect results
-            for future in as_completed(futures):
-                result = future.result()
-                all_results.append(result)
+        # Collect results and flatten the nested list structure
+        all_results = []
+        for future in as_completed(futures):
+            thread_results = future.result()
+            all_results.extend(thread_results)
 
         total_duration = time.time() - start_time
 
@@ -477,8 +684,12 @@ class TransactionExecutor:
         # Calculate performance metrics
         avg_response_time = (
             sum(r.execution_time for r in all_results) / total_transactions
+            if total_transactions > 0
+            else 0
         )
-        throughput_tps = total_transactions / total_duration
+        throughput_tps = (
+            total_transactions / total_duration if total_duration > 0 else 0
+        )
 
         # Group results by thread
         per_thread_results = [[] for _ in range(num_threads)]
@@ -495,6 +706,34 @@ class TransactionExecutor:
             transaction_breakdown=transaction_breakdown,
             per_thread_results=per_thread_results,
         )
+
+    def _execute_thread_transactions(
+        self,
+        thread_id: int,
+        transaction_count: int,
+        read_write_ratio: float,
+        transaction_probabilities: List[float],
+    ) -> List[TransactionResult]:
+        """Execute a batch of transactions for a single thread."""
+        results = []
+
+        for _ in range(transaction_count):
+            # Select transaction type based on read-write ratio
+            if random.random() < read_write_ratio:
+                # Read-write transactions (NewOrder, Payment, Delivery)
+                txn_type = self._select_transaction_type(
+                    transaction_probabilities[:3] + [0.0, 0.0]
+                )
+            else:
+                # Read-only transactions (OrderStatus, StockLevel)
+                txn_type = self._select_transaction_type(
+                    [0.0, 0.0, 0.0] + transaction_probabilities[3:]
+                )
+
+            result = self._execute_transaction(txn_type, thread_id)
+            results.append(result)
+
+        return results
 
     def close_thread_connections(self):
         """Close all thread-local database connections."""

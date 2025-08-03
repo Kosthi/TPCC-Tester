@@ -7,20 +7,19 @@ import argparse
 import logging
 import sys
 
+from tpcc.config.logging_config import setup_logging as configure_logging
 from tpcc.database.database_connection import DatabaseConnection
 from tpcc.executor.tpcc_executor import TpccExecutor
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
-
+# Initialize logging
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging level based on verbosity."""
-    if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    log_level = "DEBUG" if verbose else "INFO"
+    configure_logging(log_level=log_level)
+
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -56,13 +55,13 @@ def main():
         "--transactions", type=int, default=100, help="Transactions per thread"
     )
     parser.add_argument(
-        "--rw-ratio", type=float, default=0.5, help="Read-write ratio (0.0-1.0)"
+        "--rw-ratio", type=float, default=1.0, help="Read-write ratio (0.0-1.0)"
     )
     parser.add_argument(
         "--txn-probs",
         type=float,
         nargs=5,
-        default=[0.45, 0.43, 0.04, 0.04, 0.04],
+        default=[0.5, 0.5, 0.00, 0.00, 0.00],
         metavar=("NEWORDER", "PAYMENT", "DELIVERY", "ORDERSTATUS", "STOCKLEVEL"),
         help="Transaction type probabilities",
     )

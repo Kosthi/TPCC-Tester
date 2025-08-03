@@ -64,22 +64,52 @@ class DatabaseConnection:
 
     def execute_query(self, query: str, params: tuple = ()) -> list:
         """Execute a SELECT query and return results."""
+        import time
+
+        start_time = time.time()
         try:
+            logger.debug(f"Executing query: {query[:100]}...")  # Log first 100 chars
             with self.get_cursor() as cursor:
                 cursor.execute(query, params)
-                return cursor.fetchall()
+                result = cursor.fetchall()
+                execution_time = time.time() - start_time
+
+                if execution_time > 10.0:  # Log slow queries
+                    logger.warning(
+                        f"Slow query took {execution_time:.2f}s: {query[:100]}..."
+                    )
+
+                logger.debug(
+                    f"Query returned {len(result)} rows in {execution_time:.2f}s"
+                )
+                return result
         except Exception as e:
-            logger.error(f"Query execution failed: {e}")
+            execution_time = time.time() - start_time
+            logger.error(f"Query execution failed after {execution_time:.2f}s: {e}")
+            logger.error(f"Failed query: {query}")
             raise
 
     def execute_update(self, query: str, params: tuple = ()) -> int:
         """Execute an INSERT/UPDATE/DELETE query and return affected rows."""
         try:
+            import time
+
+            start_time = time.time()
+            logger.debug(f"Executing update: {query[:100]}...")
+
             with self.get_cursor() as cursor:
                 cursor.execute(query, params)
+                execution_time = time.time() - start_time
+
+                if execution_time > 5.0:  # Log slow queries
+                    logger.warning(
+                        f"Slow update query took {execution_time:.2f}s: {query[:100]}..."
+                    )
+
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Update execution failed: {e}")
+            logger.error(f"Failed update: {query}")
             raise
 
     def execute_script(self, sql_script: str) -> None:

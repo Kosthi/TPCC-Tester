@@ -33,7 +33,7 @@ CREATE TABLE stock
     s_dist_08    char(24),
     s_dist_09    char(24),
     s_dist_10    char(24),
-    s_ytd        float,
+    s_ytd        int,
     s_order_cnt  int,
     s_remote_cnt int,
     s_data       char(50)

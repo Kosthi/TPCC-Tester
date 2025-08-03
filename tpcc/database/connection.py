@@ -46,6 +46,7 @@ class Client:
         try:
             host = socket.gethostbyname(server_host)
             sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sockfd.settimeout(30)  # 30 second timeout for connection
             sockfd.connect((host, server_port))
             return sockfd
         except Exception as e:
@@ -58,16 +59,21 @@ class Client:
         # send 单条sql命令
         if cmd:
             try:
+                self.sockfd.settimeout(300)  # 300 second timeout for operations
                 self.sockfd.sendall(cmd.encode())
                 recv_buf = self.sockfd.recv(self.MAX_MEM_BUFFER_SIZE)
                 if not recv_buf:
                     print("Connection has been closed")
+                    raise ConnectionError("Database connection closed unexpectedly")
                 else:
                     # print(recv_buf.decode(), end="")
                     return recv_buf.decode()
+            except socket.timeout:
+                print("Socket timeout occurred during database operation")
+                raise
             except Exception as e:
                 print(f"Connection was broken: {str(e)}")
-                exit(-1)
+                raise ConnectionError(f"Database connection error: {str(e)}")
 
     def start_shell_client(self):
         # 启动shell client, 在命令行中输入sql命令那种形式
