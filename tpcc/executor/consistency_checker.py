@@ -98,7 +98,9 @@ class ConsistencyCheckExecutor:
         for table_name, expected in table_checks:
             check_name = f"{table_name}_count"
             try:
-                result = self.db.execute_query(f"SELECT COUNT(*) FROM {table_name}")
+                result = self.db.execute_query(
+                    f"SELECT COUNT(*) as count FROM {table_name}"
+                )
                 actual = int(result[0][0])
                 checks[check_name] = actual == expected
                 logger.info(
