@@ -111,80 +111,66 @@ class TransactionExecutor:
         """
         start_time = time.time()
         timestamp = datetime.now()
-        max_retries = 3
         retry_delay = 0.1  # 100ms
         max_execution_time = 60  # 60 second timeout per transaction
+        attempt = 0
 
-        for attempt in range(max_retries):
-            try:
-                db = self._get_thread_db_connection()
+        db = self._get_thread_db_connection()
 
-                if transaction_type == self.NEW_ORDER:
-                    success = self._execute_new_order(db)
-                elif transaction_type == self.PAYMENT:
-                    success = self._execute_payment(db)
-                elif transaction_type == self.DELIVERY:
-                    success = self._execute_delivery(db)
-                elif transaction_type == self.ORDER_STATUS:
-                    success = self._execute_order_status(db)
-                elif transaction_type == self.STOCK_LEVEL:
-                    success = self._execute_stock_level(db)
-                else:
-                    raise ValueError(f"Unknown transaction type: {transaction_type}")
+        while True:
+            if transaction_type == self.NEW_ORDER:
+                success = self._execute_new_order(db)
+            elif transaction_type == self.PAYMENT:
+                success = self._execute_payment(db)
+            elif transaction_type == self.DELIVERY:
+                success = self._execute_delivery(db)
+            elif transaction_type == self.ORDER_STATUS:
+                success = self._execute_order_status(db)
+            elif transaction_type == self.STOCK_LEVEL:
+                success = self._execute_stock_level(db)
+            else:
+                raise ValueError(f"Unknown transaction type: {transaction_type}")
 
-                execution_time = time.time() - start_time
+            execution_time = time.time() - start_time
 
-                if execution_time > max_execution_time:
-                    logger.warning(
-                        f"Transaction type {transaction_type} took {execution_time:.2f}s, exceeding timeout"
-                    )
-
-                if attempt > 0:
-                    logger.debug(f"Transaction succeeded after {attempt + 1} attempts")
-
-                return TransactionResult(
-                    transaction_type=transaction_type,
-                    success=success,
-                    execution_time=execution_time,
-                    timestamp=timestamp,
-                    thread_id=thread_id,
+            if execution_time > max_execution_time:
+                logger.warning(
+                    f"Transaction type {transaction_type} took {execution_time:.2f}s, exceeding timeout"
                 )
 
-            except Exception as e:
-                retry_count = attempt + 1
+            if not success:
+                attempt += 1
                 execution_time = time.time() - start_time
 
                 # Check for deadlock or timeout specific errors
-                error_msg = str(e).lower()
-                is_deadlock = (
-                    "deadlock" in error_msg
-                    or "timeout" in error_msg
-                    or "lock" in error_msg
-                )
+                # error_msg = str(e).lower()
+                # is_deadlock = (
+                #     "deadlock" in error_msg
+                #     or "timeout" in error_msg
+                #     or "lock" in error_msg
+                # )
 
-                logger.warning(f"Transaction attempt {retry_count} failed: {e}")
-                if is_deadlock:
-                    logger.info(
-                        "Detected potential deadlock, will retry with longer delay"
-                    )
+                logger.warning(f"Transaction attempt {attempt} failed")
+                # if is_deadlock:
+                #     logger.info(
+                #         "Detected potential deadlock, will retry with longer delay"
+                #     )
 
-                if retry_count < max_retries:
-                    # Exponential backoff with longer delay for deadlocks
-                    delay = (
-                        0.5 * retry_count if is_deadlock else retry_delay * retry_count
-                    )
-                    time.sleep(delay)
-                else:
-                    logger.error(
-                        f"Transaction failed after {max_retries} attempts: {e}"
-                    )
-                    return TransactionResult(
-                        transaction_type=transaction_type,
-                        success=False,
-                        execution_time=execution_time,
-                        timestamp=timestamp,
-                        thread_id=thread_id,
-                    )
+                # Exponential backoff with longer delay for deadlocks
+                # delay = retry_delay * attempt
+                # time.sleep(delay)
+                continue
+
+            if attempt > 0:
+                logger.debug(f"Transaction succeeded after {attempt + 1} attempts")
+
+            return TransactionResult(
+                transaction_type=transaction_type,
+                success=success,
+                execution_time=execution_time,
+                timestamp=timestamp,
+                thread_id=thread_id,
+            )
 
     def _execute_new_order(self, db: DatabaseConnection) -> bool:
         """Execute NewOrder transaction with complete TPC-C logic."""
@@ -294,7 +280,7 @@ class TransactionExecutor:
                     stock_info[0]
                 )
                 s_quantity = int(s_quantity)
-                s_ytd = int(s_ytd)
+                s_ytd = float(s_ytd)
                 s_order_cnt = int(s_order_cnt)
                 s_remote_cnt = int(s_remote_cnt)
 
@@ -356,7 +342,8 @@ class TransactionExecutor:
             db.execute_update("COMMIT")
             return True
 
-        except Exception:
+        except Exception as e:
+            logger.error(f"New order transaction failed: {e}")
             db.execute_update("ROLLBACK")
             return False
 
