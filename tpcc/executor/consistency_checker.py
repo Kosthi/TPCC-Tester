@@ -99,7 +99,7 @@ class ConsistencyCheckExecutor:
             check_name = f"{table_name}_count"
             try:
                 result = self.db.execute_query(
-                    f"SELECT COUNT(*) as count FROM {table_name}"
+                    f"SELECT COUNT(*) as count_{table_name} FROM {table_name}"
                 )
                 actual = int(result[0][0])
                 checks[check_name] = actual == expected
