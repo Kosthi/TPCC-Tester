@@ -1,10 +1,27 @@
 # TPCC-Tester
 
-python3 -m tpcc.main --scale 1 --init --benchmark --threads 16 --transactions 300
-
-本项目为 2023-2025 全国大学生计算机系统能力大赛-数据库管理系统设计赛决赛模拟评测脚本，由 DataDance 团队维护和开发。
+本项目为 2023-2025 全国大学生计算机系统能力大赛-数据库管理系统设计赛决赛模拟评测脚本，由 DataDance 团队开发和维护。
 
 欢迎未来的数据库大赛参赛选手使用和PR。
+
+## 环境配置
+
+本项目使用 `uv` 进行 Python 依赖管理。请确保您的系统已安装 `uv`。
+
+1. **安装 `uv`** (如果尚未安装):
+   ```bash
+   curl -sSL https://astral.sh/uv/install.sh | sh
+   ```
+
+2. **创建虚拟环境并同步依赖**:
+   ```bash
+   uv sync
+   ```
+
+3. **运行项目**:
+   ```bash
+   python3 -m tpcc.main --scale 1 --init --benchmark --threads 16 --transactions 300
+   ```
 
 ## 支持项目
 
